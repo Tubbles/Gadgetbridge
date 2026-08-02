@@ -265,6 +265,7 @@ public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implement
         addSupportedService(PineTimeJFConstants.UUID_SERVICE_NAVIGATION);
         addSupportedService(PineTimeJFConstants.UUID_CHARACTERISTIC_ALERT_NOTIFICATION_EVENT);
         addSupportedService(PineTimeJFConstants.UUID_SERVICE_MOTION);
+        addSupportedService(PineTimeJFConstants.UUID_SERVICE_CALL);
         addSupportedService(PineTimeJFConstants.UUID_SERVICE_HEART_RATE);
         addSupportedService(AdaBleFsProfile.UUID_SERVICE_FS);
 
@@ -450,6 +451,27 @@ public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implement
 
     @Override
     public void onSetCallState(CallSpec callSpec) {
+        // Forward a simplified active/ended flag to the InfiniTime fork's
+        // call-state characteristic so the watch can open and close its
+        // in-call screen. Ringing (CALL_INCOMING) is deliberately not
+        // "active": the incoming-call alert below already drives its own
+        // watch UI, and the in-call screen must only appear once the call
+        // is established. safeWriteToCharacteristic no-ops on firmware
+        // without the characteristic.
+        switch (callSpec.command) {
+            case CallSpec.CALL_START:
+            case CallSpec.CALL_OUTGOING:
+            case CallSpec.CALL_ACCEPT:
+                sendCallState((byte) 0x01);
+                break;
+            case CallSpec.CALL_END:
+            case CallSpec.CALL_REJECT:
+                sendCallState((byte) 0x00);
+                break;
+            default:
+                break;
+        }
+
         if (callSpec.command == CallSpec.CALL_INCOMING) {
             TransactionBuilder builder = createTransactionBuilder("incomingcall");
 
@@ -466,6 +488,12 @@ public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implement
             profile.newAlert(builder, alert, OverflowStrategy.TRUNCATE);
             builder.queue();
         }
+    }
+
+    private void sendCallState(byte callActive) {
+        TransactionBuilder builder = createTransactionBuilder("callstate");
+        safeWriteToCharacteristic(builder, PineTimeJFConstants.UUID_CHARACTERISTIC_CALL_STATE, new byte[] {callActive});
+        builder.queue();
     }
 
     @Override

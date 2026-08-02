@@ -185,6 +185,12 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
 
+        debug {
+            // Gadgetbridge T installs alongside F-Droid Gadgetbridge.
+            applicationIdSuffix ".t"
+            versionNameSuffix "-t"
+        }
+
         nightly {
             applicationIdSuffix ".nightly"
             versionNameSuffix "-${getGitHashShort}"
