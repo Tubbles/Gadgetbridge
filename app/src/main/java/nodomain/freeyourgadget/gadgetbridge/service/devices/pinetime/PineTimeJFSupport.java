@@ -536,6 +536,19 @@ public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implement
         try {
             if (handler.isValid()) {
                 gbDevice.setBusyTask(R.string.updating_firmware, getContext());
+
+                // Android's per-device GATT cache can disagree with the
+                // watch's real attribute table (firmware updates move handles
+                // and InfiniTime historically never sent Service Changed), in
+                // which case the DFU library writes the control-point CCCD at
+                // a stale handle and the watch answers GATT REQ NOT SUPPORTED
+                // (error 6), failing the flash. Field-proven that neither
+                // Bluetooth toggles nor unpairing reliably clear that cache,
+                // so drop it explicitly before every DFU: the Nordic service's
+                // own connection then performs a genuine discovery.
+                LOG.info("Refreshing GATT cache before DFU");
+                getQueue().refreshDeviceCache();
+
                 DfuServiceInitiator starter = new DfuServiceInitiator(getDevice().getAddress())
                         .setDeviceName(getDevice().getName())
                         .setKeepBond(true)

@@ -373,6 +373,36 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
         mGbDevice.sendDeviceUpdateIntent(mContext, GBDevice.DeviceUpdateSubject.CONNECTION_STATE);
     }
 
+    /**
+     * Invalidates Android's GATT service cache for this device via the hidden
+     * BluetoothGatt#refresh() method, so the next service discovery reads the
+     * real attribute table over the air instead of the cache. The cache is
+     * per-device in the Bluetooth process, so this also covers other clients
+     * of the same device (e.g. the Nordic DFU service's own connection).
+     * Android keeps no public API for this; the reflection call is the
+     * de-facto standard (nRF Connect's "Refresh services" does the same).
+     *
+     * @return true if the refresh call was made and reported success
+     */
+    public boolean refreshDeviceCache() {
+        synchronized (mGattMonitor) {
+            BluetoothGatt gatt = mBluetoothGatt;
+            if (gatt == null) {
+                LOG.warn("refreshDeviceCache: no gatt connection");
+                return false;
+            }
+            try {
+                final java.lang.reflect.Method refresh = gatt.getClass().getMethod("refresh");
+                final boolean success = (Boolean) refresh.invoke(gatt);
+                LOG.info("refreshDeviceCache: refresh() returned {}", success);
+                return success;
+            } catch (Exception e) {
+                LOG.error("refreshDeviceCache: reflection failed", e);
+                return false;
+            }
+        }
+    }
+
     void disconnect() {
         LOG.debug("disconnecting");
         synchronized (mGattMonitor) {
