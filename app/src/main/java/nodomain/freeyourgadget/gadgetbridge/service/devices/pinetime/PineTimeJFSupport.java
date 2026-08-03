@@ -548,6 +548,17 @@ public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implement
                 // own connection then performs a genuine discovery.
                 LOG.info("Refreshing GATT cache before DFU");
                 getQueue().refreshDeviceCache();
+                // refresh() purges the persistent cache, but the live
+                // connection's in-memory table survives until the ACL drops:
+                // field-proven on 2026-08-03, when a successful refresh was
+                // followed by a 25 ms (i.e. cached) discovery and the same
+                // stale-handle failure. Dropping our connection forces the DFU
+                // service onto a fresh ACL with a genuine discovery. GB does
+                // not auto-reconnect after a wanted disconnect, so after a
+                // FAILED flash the user reconnects manually; after a
+                // successful one the watch reboots anyway.
+                LOG.info("Disconnecting so the DFU service gets a fresh ACL and a real discovery");
+                disconnect();
 
                 DfuServiceInitiator starter = new DfuServiceInitiator(getDevice().getAddress())
                         .setDeviceName(getDevice().getName())

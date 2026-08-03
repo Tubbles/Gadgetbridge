@@ -280,11 +280,43 @@ public abstract class AbstractBTLESingleDeviceSupport extends AbstractBTLEDevice
         return getCharacteristic(uuid);
     }
 
+    /**
+     * Logs the complete GATT table exactly as Android serves it to this app,
+     * with attribute handles. Diagnostic for cache-vs-reality mismatches: a
+     * dump from a cached discovery can be compared against one from a genuine
+     * over-the-air discovery (e.g. after refreshDeviceCache + reconnect) in
+     * the same log. Characteristic and service instance ids are the attribute
+     * handles; descriptors expose theirs only through a hidden getter, with
+     * "?" as the fallback.
+     */
+    private void logGattTable(List<BluetoothGattService> services) {
+        final StringBuilder table = new StringBuilder("GATT table as served to this app:\n");
+        for (BluetoothGattService service : services) {
+            table.append(String.format("  svc  %04x %s\n", service.getInstanceId(), service.getUuid()));
+            for (BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
+                table.append(String.format("    chr  %04x props=%02x %s\n",
+                        characteristic.getInstanceId(), characteristic.getProperties(), characteristic.getUuid()));
+                for (android.bluetooth.BluetoothGattDescriptor descriptor : characteristic.getDescriptors()) {
+                    String handle = "   ?";
+                    try {
+                        final java.lang.reflect.Method getInstanceId = descriptor.getClass().getMethod("getInstanceId");
+                        handle = String.format("%04x", (Integer) getInstanceId.invoke(descriptor));
+                    } catch (Exception ignored) {
+                        // hidden API refused; UUID order still identifies the descriptor
+                    }
+                    table.append(String.format("      dsc  %s %s\n", handle, descriptor.getUuid()));
+                }
+            }
+        }
+        logger.info(table.toString());
+    }
+
     private void gattServicesDiscovered(List<BluetoothGattService> discoveredGattServices) {
         if (discoveredGattServices == null) {
             logger.warn("No gatt services discovered: null!");
             return;
         }
+        logGattTable(discoveredGattServices);
         Set<UUID> supportedServices = getSupportedServices();
         Map<UUID, BluetoothGattCharacteristic> newCharacteristics = new HashMap<>();
 
