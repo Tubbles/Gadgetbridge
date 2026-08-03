@@ -121,7 +121,11 @@ android {
 
         // Note: always bump BOTH versionCode and versionName!
         versionName "0.92.2"
-        versionCode 251
+        // CI builds get a monotonically increasing versionCode (base * 1000 +
+        // workflow run number) so every artifact can update the previous one.
+        versionCode System.getenv("PINETIME_CI_VERSION_CODE") != null
+                ? 251 * 1000 + System.getenv("PINETIME_CI_VERSION_CODE").toInteger()
+                : 251
         vectorDrawables.useSupportLibrary = true
         buildConfigField "String", "GIT_HASH_SHORT", "\"${getGitHashShort()}\""
         buildConfigField "boolean", "INTERNET_ACCESS", "false"
@@ -138,6 +142,19 @@ android {
                 storePassword System.getProperty("nightly_store_password")
                 keyAlias System.getProperty("nightly_key_alias")
                 keyPassword System.getProperty("nightly_key_password")
+            }
+        }
+        // CI debug signing with an explicit committed keystore. Seeding
+        // ~/.android/debug.keystore on the runner proved unreliable (AGP
+        // resolved a different path and silently generated a throwaway key
+        // per run, so no artifact could ever update the previous install);
+        // an explicit signingConfig removes the path guesswork.
+        ciDebug {
+            if (System.getenv("PINETIME_DEBUG_KEYSTORE") != null) {
+                storeFile file(System.getenv("PINETIME_DEBUG_KEYSTORE"))
+                storePassword "android"
+                keyAlias "androiddebugkey"
+                keyPassword "android"
             }
         }
     }
@@ -189,6 +206,9 @@ android {
             // Gadgetbridge T installs alongside F-Droid Gadgetbridge.
             applicationIdSuffix ".t"
             versionNameSuffix "-t"
+            if (System.getenv("PINETIME_DEBUG_KEYSTORE") != null) {
+                signingConfig = signingConfigs.ciDebug
+            }
         }
 
         nightly {
