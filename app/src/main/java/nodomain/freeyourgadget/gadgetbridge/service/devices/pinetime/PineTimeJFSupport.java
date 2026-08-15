@@ -25,8 +25,11 @@ import static nodomain.freeyourgadget.gadgetbridge.devices.pinetime.weather.Weat
 import static nodomain.freeyourgadget.gadgetbridge.devices.pinetime.weather.WeatherData.mapOpenWeatherConditionToPineTimePrecipitation;
 import static nodomain.freeyourgadget.gadgetbridge.devices.pinetime.weather.WeatherData.mapOpenWeatherConditionToPineTimeSpecial;
 
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -252,6 +255,49 @@ public class PineTimeJFSupport extends AbstractBTLESingleDeviceSupport implement
                     percent, speed, averageSpeed, segment, totalSegments));
         }
     };
+
+    /**
+     * Marker so the one-time seeding below never overrides a later
+     * deliberate change or clear.
+     */
+    private static final String PREF_BLE_API_SEEDED = "tubbles_ble_api_seeded";
+
+    @Override
+    public void setContext(GBDevice gbDevice, BluetoothAdapter btAdapter, Context context) {
+        seedBleIntentApiPrefs(gbDevice);
+        super.setContext(gbDevice, btAdapter, context);
+    }
+
+    /**
+     * Tubbles deployment defaults for the BLE Intent API (key tones), so a
+     * fresh install or a re-added watch needs no manual setup (runbook
+     * section 2 in the pinetime-hacks repo). Seeded before super.setContext
+     * so the very first connect already enables the API. Only keys that
+     * have never been set are filled; the marker keeps later edits and
+     * clears authoritative. Removing the device deletes its prefs, so
+     * re-adding it restores these defaults.
+     */
+    private void seedBleIntentApiPrefs(GBDevice device) {
+        SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(device.getAddress());
+        if (prefs.getBoolean(PREF_BLE_API_SEEDED, false)) {
+            return;
+        }
+        SharedPreferences.Editor editor = prefs.edit();
+        if (!prefs.contains(DeviceSettingsPreferenceConst.PREFS_KEY_DEVICE_BLE_API_DEVICE_READ_WRITE)) {
+            editor.putBoolean(DeviceSettingsPreferenceConst.PREFS_KEY_DEVICE_BLE_API_DEVICE_READ_WRITE, true);
+        }
+        if (!prefs.contains(DeviceSettingsPreferenceConst.PREFS_KEY_DEVICE_BLE_API_DEVICE_NOTIFY)) {
+            editor.putBoolean(DeviceSettingsPreferenceConst.PREFS_KEY_DEVICE_BLE_API_DEVICE_NOTIFY, true);
+        }
+        if (!prefs.contains(DeviceSettingsPreferenceConst.PREFS_KEY_DEVICE_BLE_API_CHARACTERISTIC)) {
+            editor.putString(DeviceSettingsPreferenceConst.PREFS_KEY_DEVICE_BLE_API_CHARACTERISTIC,
+                             "00080001-78fc-48fe-8e23-433b3a1942d0");
+        }
+        if (!prefs.contains(DeviceSettingsPreferenceConst.PREFS_KEY_DEVICE_BLE_API_PACKAGE)) {
+            editor.putString(DeviceSettingsPreferenceConst.PREFS_KEY_DEVICE_BLE_API_PACKAGE, "com.tubbles.phone.debug");
+        }
+        editor.putBoolean(PREF_BLE_API_SEEDED, true).apply();
+    }
 
     public PineTimeJFSupport() {
         super(LOG);
